@@ -75,23 +75,30 @@ class Simulation:
             
             old_x, old_y = agent.position
             
-            # Decide Move (Simplified: move to a random adjacent empty cell within movement_speed)
-            moved = False
+            # Decide Move using probabilistic scoring
+            candidates = []
             speed = agent.genome.movement_speed
-            for _ in range(5): # Try a few times
-                dx = np.random.randint(-speed, speed + 1)
-                dy = np.random.randint(-speed, speed + 1)
-                new_x = (old_x + dx) % self.grid.width
-                new_y = (old_y + dy) % self.grid.height
-                
-                if not self.grid.life_occupancy[new_x, new_y]:
-                    # Perform move
-                    self.grid.life_occupancy[old_x, old_y] = False
-                    agent.position = (new_x, new_y)
-                    self.grid.life_occupancy[new_x, new_y] = True
-                    moved = True
-                    agent.energy -= 0.1 # Movement cost
-                    break
+            for dx in range(-speed, speed + 1):
+                for dy in range(-speed, speed + 1):
+                    if dx == 0 and dy == 0:
+                        continue
+                    new_x = (old_x + dx) % self.grid.width
+                    new_y = (old_y + dy) % self.grid.height
+                    
+                    if not self.grid.life_occupancy[new_x, new_y]:
+                        candidates.append({
+                            'pos': (new_x, new_y),
+                            'resource': self.grid.resource_a[new_x, new_y],
+                            'waste': self.grid.waste_w[new_x, new_y],
+                            'distance': np.sqrt(dx**2 + dy**2)
+                        })
+            
+            if candidates:
+                new_pos = agent.calculate_move_probability(candidates)
+                self.grid.life_occupancy[old_x, old_y] = False
+                agent.position = new_pos
+                self.grid.life_occupancy[new_pos[0], new_pos[1]] = True
+                agent.energy -= 0.1 # Movement cost
             
             # Decide Reproduce (If enough energy)
             if agent.energy > 2.0:
@@ -101,7 +108,10 @@ class Simulation:
                 if not self.grid.life_occupancy[rx, ry]:
                     child_energy = 0.5
                     agent.energy -= (child_energy + 0.2) # Reproduction cost
-                    child = Agent((rx, ry), agent.genome, energy=child_energy)
+                    
+                    # Mutation logic integrated
+                    child_genome = Agent.mutate_genome(agent.genome)
+                    child = Agent((rx, ry), child_genome, energy=child_energy)
                     new_agents.append(child)
                     self.grid.life_occupancy[rx, ry] = True
 

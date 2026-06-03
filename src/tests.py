@@ -57,5 +57,50 @@ class TestMetabolicSimulation(unittest.TestCase):
         self.sim.tick()
         self.assertAlmostEqual(self.agent.energy, 1.6)
 
+    def test_mutation_stability(self):
+        """Verify that mutation stays within reasonable bounds."""
+        parent_genome = self.genome
+        for _ in range(100):
+            child_genome = Agent.mutate_genome(parent_genome)
+            self.assertTrue(1 <= child_genome.movement_speed <= 3)
+            self.assertTrue(0.0 <= child_genome.energy_collection <= 2.0)
+            self.assertTrue(0.0 <= child_genome.waste_tolerance <= 2.0)
+            self.assertTrue(1 <= child_genome.vision_range <= 2)
+
+    def test_statistical_stability(self):
+        """
+        Runs the simulation multiple times and verifies that the output metric
+        is stable within a defined tolerance.
+        """
+        num_runs = 100
+        tolerance = 0.1
+        final_energies = []
+        
+        for _ in range(num_runs):
+            # Reset state for each run
+            grid = Grid(10, 10)
+            genome = Genome(movement_speed=1, energy_collection=1.0, waste_tolerance=1.0, vision_range=1)
+            agent = Agent(position=(5, 5), genome=genome, energy=1.0)
+            grid.life_occupancy[5, 5] = True
+            grid.resource_a[5, 5] = 1.0
+            sim = Simulation(grid, [agent])
+            
+            # Run 1 tick
+            sim.tick()
+            if sim.agents:
+                final_energies.append(sim.agents[0].energy)
+            else:
+                final_energies.append(0.0)
+        
+        mean_energy = np.mean(final_energies)
+        variance_energy = np.var(final_energies)
+        
+        print(f"\n[STATISTICAL TEST] Mean Energy: {mean_energy:.4f}, Variance: {variance_energy:.4f}")
+        
+        # In this setup, Energy should be around 1.9 (1.0 + 1.0 - 0.1)
+        expected_mean = 1.9
+        self.assertLess(abs(mean_energy - expected_mean), tolerance, 
+                       f"Mean energy {mean_energy} out of tolerance {tolerance}")
+
 if __name__ == '__main__':
     unittest.main()
